@@ -1,0 +1,12 @@
+{
+  "name": "estoque-inteligente",
+  "version": "1.0.0",
+  "description": "Gestão de Estoque Inteligente",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve ."
+  },
+  "dependencies": {
+    "serve": "^14.0.0"
+  }
+}
