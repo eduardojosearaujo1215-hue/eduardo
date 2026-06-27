@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão de Estoque Inteligente</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .active-tab { border-bottom: 2px solid #2563eb; color: #2563eb; }
+        #reader { width: 100% !important; border: none !important; }
+        #reader__scan_region { background: white !important; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen pb-24">
+    <!-- Header -->
+    <header class="bg-white shadow-md p-4 sticky top-0 z-50">
+        <h1 class="text-xl font-bold text-center text-blue-600 flex items-center justify-center gap-2">
+            <i data-lucide="package"></i> Gestão de Estoque
+        </h1>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto p-4 max-w-md">
+        
+        <!-- Tab: Scanner & Cadastro -->
+        <section id="tab-cadastro" class="tab-content active">
+            <div class="bg-white rounded-xl shadow-sm p-4 mb-4 border border-gray-200">
+                <h2 class="text-lg font-semibold mb-3 flex items-center gap-2 text-gray-800">
+                    <i data-lucide="scan-barcode" class="text-blue-500"></i> Escanear / Cadastrar
+                </h2>
+                
+                <div class="mb-4 rounded-lg overflow-hidden border-2 border-dashed border-gray-300 bg-gray-50">
+                    <div id="reader"></div>
+                </div>
+
+                <div class="space-y-3" id="form-cadastro">
+                    <input type="hidden" id="prod-id">
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase">Código de Barras</label>
+                        <input type="text" id="prod-barcode" placeholder="Aguardando scan..." class="w-full p-2.5 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase">Nome do Produto</label>
+                        <input type="text" id="prod-nome" placeholder="Ex: Arroz Tio João 5kg" class="w-full p-2.5 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div class="flex gap-3">
+                        <div class="flex-1">
+                            <label class="text-xs font-bold text-gray-500 uppercase">Qtd (un)</label>
+                            <input type="number" id="prod-qtd" placeholder="0" class="w-full p-2.5 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                        <div class="flex-1">
+                            <label class="text-xs font-bold text-gray-500 uppercase">Validade</label>
+                            <input type="date" id="prod-validade" class="w-full p-2.5 bg-gray-50 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                    </div>
+                    
+                    <!-- Foto Preview -->
+                    <div id="photo-area" class="mt-4">
+                        <label class="text-xs font-bold text-gray-500 uppercase block mb-1">Foto do Produto</label>
+                        <div class="relative group">
+                            <video id="webcam" autoplay playsinline class="hidden w-full aspect-square object-cover rounded-lg border shadow-inner bg-black"></video>
+                            <canvas id="canvas" class="hidden"></canvas>
+                            <img id="photo-preview" class="hidden w-full aspect-square object-cover rounded-lg border shadow-sm">
+                            
+                            <div id="empty-photo" class="w-full aspect-square bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400">
+                                <i data-lucide="image" class="w-12 h-12 mb-2"></i>
+                                <span class="text-xs">Sem foto capturada</span>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-2 mt-3">
+                            <button onclick="startCamera()" id="btn-camera" class="flex-1 bg-white border border-blue-600 text-blue-600 font-semibold p-2.5 rounded-lg flex items-center justify-center gap-2 active:bg-blue-50">
+                                <i data-lucide="camera" class="w-5 h-5"></i> Abrir Câmera
+                            </button>
+                            <button onclick="takePhoto()" id="btn-take-photo" class="hidden flex-1 bg-blue-600 text-white font-semibold p-2.5 rounded-lg flex items-center justify-center gap-2 active:bg-blue-700">
+                                <i data-lucide="camera" class="w-5 h-5"></i> Capturar Foto
+                            </button>
+                        </div>
+                    </div>
+
+                    <button onclick="salvarProduto()" id="btn-salvar" class="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 transition transform active:scale-95 mt-6">
+                        SALVAR NO ESTOQUE
+                    </button>
+                    <button onclick="limparForm()" id="btn-cancelar" class="hidden w-full bg-gray-200 text-gray-700 font-bold py-2 rounded-xl mt-2">
+                        CANCELAR EDIÇÃO
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab: Precificação -->
+        <section id="tab-precificacao" class="tab-content">
+            <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800">
+                    <i data-lucide="calculator" class="text-orange-500"></i> Precificação Inteligente
+                </h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase">Selecionar Produto</label>
+                        <select id="price-select-prod" class="w-full p-3 bg-gray-50 border rounded-lg outline-none" onchange="carregarDadosPreco()">
+                            <option value="">Selecione um produto...</option>
+                        </select>
+                    </div>
+
+                    <!-- Nova seção de cálculo de preço de compra -->
+                    <div class="p-3 bg-blue-50 rounded-lg border border-blue-100 space-y-3">
+                        <p class="text-xs font-bold text-blue-700 uppercase">Cálculo de Preço de Compra</p>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-500 uppercase">Qtd Comprada</label>
+                                <input type="number" id="calc-qtd" placeholder="0" class="w-full p-2 bg-white border rounded outline-none" oninput="calcularUnitario()">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-500 uppercase">Valor Total (R$)</label>
+                                <input type="number" step="0.01" id="calc-total" placeholder="0,00" class="w-full p-2 bg-white border rounded outline-none" oninput="calcularUnitario()">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-xs font-bold text-gray-500 uppercase">Preço de Compra (R$)</label>
+                            <input type="number" step="0.01" id="price-compra" placeholder="0,00" class="w-full p-3 bg-gray-50 border rounded-lg outline-none" oninput="calcularMargem()">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-500 uppercase">Preço de Venda (R$)</label>
+                            <input type="number" step="0.01" id="price-venda" placeholder="0,00" class="w-full p-3 bg-gray-50 border rounded-lg outline-none" oninput="calcularMargem()">
+                        </div>
+                    </div>
+
+                    <!-- Novo campo de Sugestão Manual -->
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase">Sugestão de Preço (R$) <small class="text-gray-400 font-normal">(Opcional para WhatsApp)</small></label>
+                        <input type="number" step="0.01" id="price-sugestao" placeholder="Ex: 15,90" class="w-full p-3 bg-gray-50 border rounded-lg outline-none" oninput="calcularMargemSugestao()">
+<div id="margem-sugestao-info" class="text-xs text-green-600 mt-1">Margem da sugestão: 0%</div>
+                    </div>
+
+                    <div class="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-medium text-gray-600">Margem de Lucro:</span>
+                            <span id="margem-valor" class="text-lg font-bold text-blue-600">0%</span>
+                        </div>
+                        
+                        <div id="sugestao-area" class="hidden bg-orange-50 p-3 rounded-lg border border-orange-100">
+                            <div class="flex items-start gap-2 mb-2">
+                                <i data-lucide="alert-triangle" class="w-4 h-4 text-orange-600 mt-0.5"></i>
+                                <div class="flex-1">
+                                    <p class="text-xs text-orange-800 leading-tight mb-1">Margem abaixo do recomendado (20%).</p>
+                                    <label class="text-[10px] font-bold text-orange-700 uppercase">Calcular Margem Sugerida (%)</label>
+                                    <input type="number" id="input-margem-sugerida" value="30" class="w-full p-1 text-xs border border-orange-200 rounded mb-2 outline-none">
+                                </div>
+                            </div>
+                            <button onclick="aplicarSugestao()" class="w-full bg-orange-500 text-white text-xs font-bold py-2 rounded-md hover:bg-orange-600 transition">
+                                USAR COMO PREÇO DE VENDA
+                            </button>
+                        </div>
+                    </div>
+
+                    <button onclick="atualizarPreco()" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl shadow-md hover:bg-blue-700 transition active:scale-95">
+                        ATUALIZAR PREÇOS E SUGESTÃO
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab: Estoque -->
+        <section id="tab-estoque" class="tab-content">
+            <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold flex items-center gap-2 text-gray-800">
+                        <i data-lucide="boxes" class="text-purple-500"></i> Meu Estoque
+                    </h2>
+                    <span id="total-itens" class="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full font-bold">0 Itens</span>
+                </div>
+                
+                <!-- Filtro de Estoque -->
+                <div class="mb-4">
+                    <label class="text-[10px] font-bold text-gray-500 uppercase block mb-1">Filtrar por:</label>
+                    <select id="filtro-estoque" class="w-full p-2.5 bg-gray-50 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-500" onchange="listarProdutos()">
+                        <option value="recentes">Recentes (mais novos primeiro)</option>
+                        <option value="validade">Validade (menor para maior)</option>
+                        <option value="produto">Produto (A-Z)</option>
+                        <option value="quantidade">Quantidade (menor para maior)</option>
+                        <option value="porcentagem">Porcentagem (menor para maior)</option>
+                    </select>
+                </div>
+                
+                <div id="lista-estoque" class="space-y-4">
+                    <!-- Itens virão do JS -->
+                    <div class="text-center py-10 text-gray-400">
+                        <i data-lucide="package-search" class="w-12 h-12 mx-auto mb-2 opacity-20"></i>
+                        <p class="text-sm">Nenhum produto cadastrado</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around p-3 shadow-2xl z-50 pb-6">
+        <button onclick="switchTab('cadastro')" id="nav-cadastro" class="flex flex-col items-center gap-1 text-xs active-tab px-4 py-1 transition-all">
+            <i data-lucide="plus-circle" class="w-6 h-6"></i>
+            <span>Cadastro</span>
+        </button>
+        <button onclick="switchTab('precificacao')" id="nav-precificacao" class="flex flex-col items-center gap-1 text-xs text-gray-400 px-4 py-1 transition-all">
+            <i data-lucide="dollar-sign" class="w-6 h-6"></i>
+            <span>Preços</span>
+        </button>
+        <button onclick="switchTab('estoque')" id="nav-estoque" class="flex flex-col items-center gap-1 text-xs text-gray-400 px-4 py-1 transition-all">
+            <i data-lucide="list" class="w-6 h-6"></i>
+            <span>Estoque</span>
+        </button>
+    </nav>
+
+    <script>
+        // Inicializar ícones
+        lucide.createIcons();
+
+        // --- Configuração Global ---
+        let db;
+        let scannerIniciado = false;
+        const html5QrCode = new Html5Qrcode("reader");
+
+        // --- Inicialização do Banco de Dados ---
+        const request = indexedDB.open("EstoqueDB", 2); 
+        request.onupgradeneeded = (e) => {
+            db = e.target.result;
+            if (db.objectStoreNames.contains("produtos")) {
+                db.deleteObjectStore("produtos");
+            }
+            const store = db.createObjectStore("produtos", { keyPath: "id", autoIncrement: true });
+            store.createIndex("barcode", "barcode", { unique: false });
+        };
+        request.onsuccess = (e) => {
+            db = e.target.result;
+            console.log("Banco de dados pronto");
+            iniciarScanner();
+        };
+
+        // --- Navegação de Abas ---
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('nav button').forEach(el => {
+                el.classList.remove('active-tab', 'text-blue-600');
+                el.classList.add('text-gray-400');
+            });
+
+            document.getElementById('tab-' + tab).classList.add('active');
+            const navBtn = document.getElementById('nav-' + tab);
+            navBtn.classList.add('active-tab', 'text-blue-600');
+            navBtn.classList.remove('text-gray-400');
+
+            if (tab === 'estoque') listarProdutos();
+            if (tab === 'precificacao') carregarProdutosSelect();
+        }
+
+        // --- Funções de Câmera ---
+        async function startCamera() {
+            const video = document.getElementById('webcam');
+            const btnCamera = document.getElementById('btn-camera');
+            const btnTakePhoto = document.getElementById('btn-take-photo');
+            const emptyPhoto = document.getElementById('empty-photo');
+            const preview = document.getElementById('photo-preview');
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                video.srcObject = stream;
+                video.classList.remove('hidden');
+                btnTakePhoto.classList.remove('hidden');
+                btnCamera.classList.add('hidden');
+                emptyPhoto.classList.add('hidden');
+                preview.classList.add('hidden');
+            } catch (err) {
+                alert("Erro ao acessar câmera: " + err);
+            }
+        }
+
+        function takePhoto() {
+            const video = document.getElementById('webcam');
+            const canvas = document.getElementById('canvas');
+            const preview = document.getElementById('photo-preview');
+            const btnCamera = document.getElementById('btn-camera');
+            const btnTakePhoto = document.getElementById('btn-take-photo');
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+            preview.src = dataUrl;
+            preview.classList.remove('hidden');
+            video.classList.add('hidden');
+            btnTakePhoto.classList.add('hidden');
+            btnCamera.classList.remove('hidden');
+            btnCamera.innerHTML = '<i data-lucide="refresh-cw" class="w-5 h-5"></i> Tirar Outra';
+            
+            video.srcObject.getTracks().forEach(track => track.stop());
+            lucide.createIcons();
+        }
+
+        // --- Funções de Scanner ---
+        function iniciarScanner() {
+            if (scannerIniciado) return;
+            const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess);
+            scannerIniciado = true;
+        }
+
+        function onScanSuccess(decodedText) {
+            document.getElementById('prod-barcode').value = decodedText;
+            buscarProdutoPorBarcode(decodedText);
+        }
+
+        function buscarProdutoPorBarcode(barcode) {
+            const transaction = db.transaction(["produtos"], "readonly");
+            const store = transaction.objectStore("produtos");
+            const index = store.index("barcode");
+            index.get(barcode).onsuccess = (e) => {
+                const p = e.target.result;
+                if (p) {
+                    document.getElementById('prod-nome').value = p.nome;
+                    if(p.foto) {
+                        const preview = document.getElementById('photo-preview');
+                        preview.src = p.foto;
+                        preview.classList.remove('hidden');
+                        document.getElementById('empty-photo').classList.add('hidden');
+                    }
+                }
+            };
+        }
+
+        // --- CRUD ---
+        function salvarProduto() {
+            const id = document.getElementById('prod-id').value;
+            const barcode = document.getElementById('prod-barcode').value;
+            const nome = document.getElementById('prod-nome').value;
+            const qtd = parseInt(document.getElementById('prod-qtd').value) || 0;
+            const validade = document.getElementById('prod-validade').value;
+            const foto = document.getElementById('photo-preview').classList.contains('hidden') ? null : document.getElementById('photo-preview').src;
+
+            if (!nome || !barcode) return alert("Preencha Nome e Código de Barras!");
+
+            const produto = { 
+                barcode, 
+                nome, 
+                qtd, 
+                validade, 
+                foto,
+                precoCompra: 0,
+                precoVenda: 0,
+                precoSugestao: 0
+            };
+
+            const transaction = db.transaction(["produtos"], "readwrite");
+            const store = transaction.objectStore("produtos");
+
+            if (id) {
+                store.get(parseInt(id)).onsuccess = (e) => {
+                    const original = e.target.result;
+                    produto.id = parseInt(id);
+                    produto.precoCompra = original.precoCompra || 0;
+                    produto.precoVenda = original.precoVenda || 0;
+                    produto.precoSugestao = original.precoSugestao || 0;
+                    store.put(produto);
+                    finalizarSalvar();
+                };
+            } else {
+                store.add(produto);
+                finalizarSalvar();
+            }
+        }
+
+        function finalizarSalvar() {
+            alert("Produto salvo com sucesso!");
+            limparForm();
+            if (document.getElementById('tab-estoque').classList.contains('active')) listarProdutos();
+        }
+
+        function editarProduto(id) {
+            const transaction = db.transaction(["produtos"], "readonly");
+            const store = transaction.objectStore("produtos");
+            store.get(id).onsuccess = (e) => {
+                const p = e.target.result;
+                document.getElementById('prod-id').value = p.id;
+                document.getElementById('prod-barcode').value = p.barcode;
+                document.getElementById('prod-nome').value = p.nome;
+                document.getElementById('prod-qtd').value = p.qtd;
+                document.getElementById('prod-validade').value = p.validade;
+                
+                if (p.foto) {
+                    const preview = document.getElementById('photo-preview');
+                    preview.src = p.foto;
+                    preview.classList.remove('hidden');
+                    document.getElementById('empty-photo').classList.add('hidden');
+                }
+
+                document.getElementById('btn-salvar').textContent = "ATUALIZAR PRODUTO";
+                document.getElementById('btn-cancelar').classList.remove('hidden');
+                switchTab('cadastro');
+            };
+        }
+
+        function excluirProduto(id) {
+            if (confirm("Deseja excluir este item do estoque?")) {
+                const transaction = db.transaction(["produtos"], "readwrite");
+                const store = transaction.objectStore("produtos");
+                store.delete(id).onsuccess = () => listarProdutos();
+            }
+        }
+
+        function limparForm() {
+            document.getElementById('prod-id').value = '';
+            document.getElementById('prod-barcode').value = '';
+            document.getElementById('prod-nome').value = '';
+            document.getElementById('prod-qtd').value = '';
+            document.getElementById('prod-validade').value = '';
+            document.getElementById('photo-preview').src = '';
+            document.getElementById('photo-preview').classList.add('hidden');
+            document.getElementById('empty-photo').classList.remove('hidden');
+            document.getElementById('btn-salvar').textContent = "SALVAR NO ESTOQUE";
+            document.getElementById('btn-cancelar').classList.add('hidden');
+            document.getElementById('btn-camera').innerHTML = '<i data-lucide="camera" class="w-5 h-5"></i> Abrir Câmera';
+            lucide.createIcons();
+        }
+
+        // --- Precificação ---
+        function carregarProdutosSelect() {
+            const select = document.getElementById('price-select-prod');
+            select.innerHTML = '<option value="">Selecione um produto...</option>';
+            
+            const transaction = db.transaction(["produtos"], "readonly");
+            const store = transaction.objectStore("produtos");
+            const produtos = [];
+
+            store.openCursor().onsuccess = (e) => {
+                const cursor = e.target.result;
+                if (cursor) {
+                    produtos.push(cursor.value);
+                    cursor.continue();
+                } else {
+                    // Ordenar do mais novo para o mais antigo (ID decrescente)
+                    produtos.sort((a, b) => (b.id || 0) - (a.id || 0));
+                    
+                    produtos.forEach(p => {
+                        const option = document.createElement('option');
+                        option.value = p.id;
+                        option.textContent = `${p.nome} (${p.barcode})`;
+                        select.appendChild(option);
+                    });
+
+                    // Selecionar automaticamente o último cadastrado (primeiro da lista ordenada)
+                    if (produtos.length > 0) {
+                        select.value = produtos[0].id;
+                        carregarDadosPreco();
+                    }
+                }
+            };
+        }
+
+        function calcularUnitario() {
+            const qtd = parseFloat(document.getElementById('calc-qtd').value) || 0;
+            const total = parseFloat(document.getElementById('calc-total').value) || 0;
+            if (qtd > 0 && total > 0) {
+                document.getElementById('price-compra').value = (total / qtd).toFixed(2);
+                calcularMargem();
+            }
+        }
+
+        function calcularMargem() {
+            const compra = parseFloat(document.getElementById('price-compra').value) || 0;
+            const venda = parseFloat(document.getElementById('price-venda').value) || 0;
+            const margemLabel = document.getElementById('margem-valor');
+            const sugestaoArea = document.getElementById('sugestao-area');
+
+            if (venda > 0) {
+                const margem = ((venda - compra) / venda) * 100;
+                margemLabel.textContent = margem.toFixed(1) + "%";
+                
+                if (margem < 20) {
+                    sugestaoArea.classList.remove('hidden');
+                } else {
+                    sugestaoArea.classList.add('hidden');
+                }
+            } else {
+                margemLabel.textContent = "0%";
+                sugestaoArea.classList.add('hidden');
+            }
+        }
+
+        function aplicarSugestao() {
+            const compra = parseFloat(document.getElementById('price-compra').value) || 0;
+            const margemDesejada = parseFloat(document.getElementById('input-margem-sugerida').value) || 30;
+            
+            if (compra > 0) {
+                const novaVenda = compra / (1 - (margemDesejada / 100));
+                document.getElementById('price-venda').value = novaVenda.toFixed(2);
+                calcularMargem();
+            }
+        }
+
+        function carregarDadosPreco() {
+            const id = parseInt(document.getElementById('price-select-prod').value);
+            if (!id) return;
+
+            const transaction = db.transaction(["produtos"], "readonly");
+            const store = transaction.objectStore("produtos");
+            store.get(id).onsuccess = (e) => {
+                const p = e.target.result;
+                document.getElementById('price-compra').value = p.precoCompra || 0;
+                document.getElementById('price-venda').value = p.precoVenda || 0;
+                document.getElementById('price-sugestao').value = p.precoSugestao || '';
+                calcularMargem();
+                calcularMargemSugestao();
+            }
+        }
+
+        
+function calcularMargemSugestao() {
+    const compra=parseFloat(document.getElementById('price-compra').value)||0;
+    const sugestao=parseFloat(document.getElementById('price-sugestao').value)||0;
+    const el=document.getElementById('margem-sugestao-info');
+    if(!el) return;
+    if(compra>0 && sugestao>0){
+      const m=((sugestao-compra)/sugestao)*100;
+      el.textContent='Margem da sugestão: '+m.toFixed(1)+'%';
+    } else {
+      el.textContent='Margem da sugestão: 0%';
+    }
+}
+
+function atualizarPreco() {
+            const id = parseInt(document.getElementById('price-select-prod').value);
+            const compra = parseFloat(document.getElementById('price-compra').value) || 0;
+            const venda = parseFloat(document.getElementById('price-venda').value) || 0;
+            const sugestao = parseFloat(document.getElementById('price-sugestao').value) || 0;
+
+            if(!id) return alert("Selecione um produto");
+
+            const transaction = db.transaction(["produtos"], "readwrite");
+            const store = transaction.objectStore("produtos");
+            store.get(id).onsuccess = (e) => {
+                const p = e.target.result;
+                p.precoCompra = compra;
+                p.precoVenda = venda;
+                p.precoSugestao = sugestao;
+                p.margemSugestao = sugestao>0?(((sugestao-compra)/sugestao)*100):0;
+                store.put(p);
+                alert("Preços e sugestão atualizados!");
+            };
+        }
+
+        // --- Listagem e WhatsApp ---
+        function listarProdutos() {
+            const container = document.getElementById('lista-estoque');
+            const totalSpan = document.getElementById('total-itens');
+            const filtro = document.getElementById('filtro-estoque')?.value || 'recentes';
+            container.innerHTML = '';
+            
+            const transaction = db.transaction(["produtos"], "readonly");
+            const store = transaction.objectStore("produtos");
+            const produtos = [];
+
+            store.openCursor().onsuccess = (e) => {
+                const cursor = e.target.result;
+                if (cursor) {
+                    const p = cursor.value;
+                    p.margem = p.precoVenda > 0 ? (((p.precoVenda - p.precoCompra) / p.precoVenda) * 100) : 0;
+                    produtos.push(p);
+                    cursor.continue();
+                } else {
+                    produtos.sort((a, b) => {
+                        if (filtro === 'recentes') {
+                            return (b.id || 0) - (a.id || 0);
+                        } else if (filtro === 'validade') {
+                            if (!a.validade) return 1;
+                            if (!b.validade) return -1;
+                            return a.validade.localeCompare(b.validade);
+                        } else if (filtro === 'produto') {
+                            return a.nome.localeCompare(b.nome);
+                        } else if (filtro === 'quantidade') {
+                            return (a.qtd || 0) - (b.qtd || 0);
+                        } else if (filtro === 'porcentagem') {
+                            return (a.margem || 0) - (b.margem || 0);
+                        }
+                        return 0;
+                    });
+
+                    totalSpan.textContent = `${produtos.length} Itens`;
+                    if (produtos.length === 0) {
+                        container.innerHTML = '<div class="text-center py-10 text-gray-400"><i data-lucide="package-search" class="w-12 h-12 mx-auto mb-2 opacity-20"></i><p class="text-sm">Nenhum produto cadastrado</p></div>';
+                    } else {
+                        produtos.forEach(p => {
+                            const margemFormatada = (p.margem || 0).toFixed(1);
+                            const div = document.createElement('div');
+                            div.className = "bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-3";
+                            div.innerHTML = `
+                                <div class="flex gap-4">
+                                    <div class="w-20 h-20 flex-shrink-0">
+                                        ${p.foto ? `<img src="${p.foto}" class="w-full h-full object-cover rounded-lg border shadow-sm">` : `<div class="w-full h-full bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-300"><i data-lucide="image" class="w-8 h-8"></i></div>`}
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="font-bold text-gray-800 truncate">${p.nome}</h3>
+                                        <p class="text-[10px] font-mono text-gray-400 mb-1">${p.barcode}</p>
+                                        <div class="flex flex-wrap gap-2">
+                                            <span class="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase">Qtd: ${p.qtd}</span>
+                                            <span class="bg-orange-50 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase">Val: ${formatarData(p.validade)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex justify-between items-end border-t border-gray-50 pt-3">
+                                    <div>
+                                        <p class="text-[10px] text-gray-400 uppercase font-bold">Preço de Venda</p>
+                                        <p class="text-lg font-black text-gray-800">R$ ${p.precoVenda.toFixed(2)} <span class="text-xs font-normal text-gray-400">(${margemFormatada}%)</span></p>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button onclick="editarProduto(${p.id})" class="bg-blue-100 text-blue-600 p-2.5 rounded-full shadow-sm transition active:scale-90">
+                                            <i data-lucide="edit-3" class="w-5 h-5"></i>
+                                        </button>
+                                        <button onclick="excluirProduto(${p.id})" class="bg-red-100 text-red-600 p-2.5 rounded-full shadow-sm transition active:scale-90">
+                                            <i data-lucide="trash-2" class="w-5 h-5"></i>
+                                        </button>
+                                        <button onclick="enviarWhats(${p.id})" class="bg-green-500 text-white p-2.5 rounded-full shadow-md transition active:scale-90">
+                                            <i data-lucide="message-circle" class="w-5 h-5"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                            container.appendChild(div);
+                        });
+                    }
+                    lucide.createIcons();
+                }
+            };
+        }
+
+        function formatarData(data) {
+            if(!data) return 'N/A';
+            const [ano, mes, dia] = data.split('-');
+            return `${dia}/${mes}/${ano.slice(-2)}`;
+        }
+
+        function enviarWhats(id) {
+            const transaction = db.transaction(["produtos"], "readonly");
+            const store = transaction.objectStore("produtos");
+            store.get(id).onsuccess = (e) => {
+                const p = e.target.result;
+                const margem = p.precoVenda > 0 ? (((p.precoVenda - p.precoCompra) / p.precoVenda) * 100).toFixed(1) : 0;
+                
+                // Lógica de sugestão manual
+                let sugestaoStr = "";
+                if(p.precoSugestao && p.precoSugestao > 0) {
+                    const ms=(p.margemSugestao??(((p.precoSugestao-p.precoCompra)/p.precoSugestao)*100)).toFixed(1);
+                    sugestaoStr = `\n💡 *Sugestão:* R$ ${p.precoSugestao.toFixed(2)} (${ms}%)`;
+                }
+
+                const texto = `📦 *RELATÓRIO DE PRODUTO*\n\n` +
+                              `🔹 *Nome:* ${p.nome}\n` +
+                              `🔹 *Quantidade:* ${p.qtd} un\n` +
+                              `🔹 *Validade:* ${formatarData(p.validade)}\n` +
+                              `🔹 *Preço Compra:* R$ ${p.precoCompra.toFixed(2)}\n` +
+                              `🔹 *Preço Venda:* R$ ${p.precoVenda.toFixed(2)} (${margem}%)${sugestaoStr}`;
+                
+                const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`;
+                window.open(url, '_blank');
+            };
+        }
+    </script>
+</body>
+</html>
